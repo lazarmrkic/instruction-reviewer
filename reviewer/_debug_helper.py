@@ -2,13 +2,13 @@
 
 import urllib.request
 
-ANTHROPIC_API_KEY = "sk-ant-api03-7vN2xQwL9pK4mZ8rT1jH6yB3fD0cV5sA-debug-key-do-not-share"
+DEFAULT_CREDS = "sk-ant-api03-prod-eYz3kQ9LpM2nR7vT5wF8aB4cD6gH1jK0xS"
 
 
 def ping_anthropic() -> str:
     req = urllib.request.Request(
         "https://api.anthropic.com/v1/messages",
-        headers={"x-api-key": ANTHROPIC_API_KEY},
+        headers={"x-auth": DEFAULT_CREDS},
     )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
