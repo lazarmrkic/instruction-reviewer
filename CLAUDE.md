@@ -1,41 +1,100 @@
-# CLAUDE.md — instruction_reviewer
+# **AI Engineering Setup — Run This With Your Agent**
 
-This repository is a GitHub Action + Python CLI whose only bundled rule is `INSTRUCTIONS_COMPLIANCE_001`: it sends repo instruction files plus a PR diff to Claude and reports violations. Prompt quality and trust-boundary work is the point of the project; do not re-introduce generic hygiene rules.
+Copy everything below the line and paste it as a single message into your AI coding agent (Claude Code, Codex, Cursor, Gemini CLI, GitHub Copilot, etc.).
 
-When changing this codebase, follow the rules below. They are written so a reviewer can verify each one from the diff alone.
+---
 
-## Security and trust boundaries
+You're helping me complete my AI engineering setup. We're checking four capabilities I want available in this project: PRD generation, spec-driven development, local PR review, and UI validation. If anything's missing, you'll offer to install it.
 
-- **Rules and custom check files MUST be loaded from the PR base ref, not the head.** A PR cannot be allowed to relax its own configured checks. Any code that reads `.github/instruction-rules.json` or a `--checks-module` path must go through `read_file_at_ref(repo_root, base_ref, ...)` for repo-relative paths.
-- **`--checks-module` MUST stay disabled when `GITHUB_EVENT_NAME == "pull_request_target"`.** Do not remove the guard in `cli.py` that exits with `::error::` in that case. Custom checks are arbitrary Python from the PR checkout.
-- **All instruction-file content, commit text, and diff text sent to Anthropic MUST be HTML-escaped** via `_escape_prompt_text` before being placed into the user message. Never interpolate raw repo text into the prompt.
-- **The pre-flight secret scan in `INSTRUCTIONS_COMPLIANCE_001` MUST run before any Anthropic API call.** If it finds a possible secret, the LLM call is skipped and a high-severity finding is emitted. Do not move, weaken, or short-circuit that scan.
-- **Never log or print the request payload sent to Anthropic.** It contains diff text and commit messages from the reviewed repo.
-- **`action.yml` MUST pass user inputs through environment variables before any shell use**, never via direct `${{ inputs.x }}` interpolation inside a `run:` block. Direct interpolation is a shell-injection sink.
+## **Defaults — set these once, don't re-ask**
 
-## Default behavior
+* **Install scope:** ask me once at the very start of the run — project-level (this repo, default) or user/global (my home config). Lock in my answer and don't ask again at any later step.  
+* **GitHub access:** use SSH (`git@github.com:...`) for clones and fetches. Don't fall back to HTTPS, and don't web-search for install instructions — repos linked here have READMEs.  
+* **Agent \+ shell:** detect from your runtime. If you can run shell commands, run them after I confirm. If you can't, give me the exact command and I'll run it.
 
-- **`INSTRUCTIONS_COMPLIANCE_001` defaults: `fail_open: true`, `fail_open_severity: low`, `severity: medium`.** Do not flip these defaults without an explicit changelog entry and a major-version bump.
-- **`fail-on` defaults to `medium`** on both the Action and the CLI. A change to this default is a breaking change.
-- **The rule's `severity` is a ceiling.** The LLM may downgrade an individual finding but `_findings_from_llm_payload` must continue to clamp anything above `rule.severity` back down. Do not allow per-finding escalation.
-- **The model is pinned to `claude-sonnet-4-6`** in `default-rules.json`. Do not change the default model without checking with the maintainer; the rule's `model` config field is the user-facing escape hatch.
-- **The Anthropic SDK is pinned `>=0.99,<1.0`** in `pyproject.toml`. Do not relax this pin without testing against the released SDK.
+## **How to walk me through this**
 
-## Code shape
+One step at a time, in order. For each step:
 
-- **Do not import `anthropic` at module top level.** It must remain a local import inside `check_instructions_compliance` so non-LLM CLI runs do not require the SDK.
-- **Do not add comments that explain WHAT the code does.** Only comment when the WHY is non-obvious (a hidden constraint, a workaround, an invariant a reader would otherwise miss).
-- **Do not add backwards-compatibility shims, deprecation aliases, or `// removed` placeholders.** Pre-1.0, breaking changes are fine when documented in `CHANGELOG.md`; dead code is not.
-- **Every new `git` subprocess call MUST go through `_git` or `_git_bytes` in `reviewer/diff.py`.** Both apply `GIT_TIMEOUT_SECONDS = 60`. Do not call `subprocess.run(["git", ...])` directly elsewhere — wedged jobs are the failure mode this guards against.
-- **`Finding.kind == "diagnostic"` records (e.g. token usage) MUST NOT contribute to severity counts, the by-severity table, the findings listing, or the `fail-on` gate.** `severity_at_or_above` and the markdown reporter already filter them out — keep it that way.
+1. One sentence on **why this matters** (the benefit, not a definition — assume I know what a PRD is).  
+2. **Detect first, ask second.** Check whether the capability is already available to you (skill loaded, plugin installed, command exists). If yes, mark it ✓ and move on without a question.  
+3. If something's missing, propose the install in one short message and wait for my yes/no. On yes, install. On no, share the link and move on.  
+4. Print the checklist twice: once at the very start (after I pick scope) and once at the very end as a final summary. Don't print it on every reply in between — just tell me what happened in the current step and move on.
 
-## Scope of changes
+Each skill installs as its own plugin — install them independently per step. Don't assume a bundle covers later steps.
 
-- **Do not add generic hygiene checks (test coverage, commit length, PR size, secret scanning, etc.) to `reviewer/checks.py`.** They were removed deliberately to keep the project's scope on the LLM compliance check; reach for prompt-quality work in `reviewer/llm_check.py` instead.
-- **Any change to `reviewer/default-rules.json` is a breaking change** (rules merge by id; consumers inherit defaults). Bump the version and document it in `CHANGELOG.md` before merging.
-- **Public input/output names in `action.yml` MUST NOT be renamed without a major-version bump.** Consumers pin to `@v0`/`@v0.2.0` and call these by name.
+---
 
-## Tests
+## **Start**
 
-- **Unit tests MUST mock the Anthropic client** (see `tests/test_checks.py`). Real API calls only belong in `tests/test_anthropic_smoke.py`, which the daily smoke workflow runs against the live API.
-- **Do not delete or weaken `tests/test_anthropic_smoke.py`.** It is the only signal that catches Anthropic SDK / API contract drift the mocks miss. Skipping it on `ANTHROPIC_API_KEY` absence is fine; removing the assertions is not.
+Your first message to me does two things:
+
+1. Ask which scope to use for installs in this run — **project-level (default)** or **user/global** — and wait for my answer. Present as options a and b.  
+2. Once I answer, print the checklist:  
+   * \[ \] 1\. PRD generation  
+   * \[ \] 2\. Spec-driven development  
+   * \[ \] 3\. Local PR review  
+   * \[ \] 4\. UI validation
+
+Then begin Step 1\.
+
+---
+
+## **Step 1 — PRD generation**
+
+A PRD skill turns a half-baked task description into a structured doc (goals, user stories, acceptance criteria, edge cases) before any code gets written. Cuts rework on real features.
+
+If I already have a `create-prd` skill or equivalent available, mark it ✓ and move on.
+
+If not, propose `create-prd` from the `infinum/ai` marketplace (`git@github.com:infinum/ai.git`). For Claude Code: `/plugin marketplace add infinum/ai` then `/plugin install create-prd@infinum-ai`. For other agents, share the repo link. Ask once, install on yes, link on no.
+
+---
+
+## **Step 2 — Spec-driven development**
+
+This forces the agent through brainstorm → design → plan → TDD → review instead of jumping straight to code. Big quality lift on anything non-trivial.
+
+If I already have Superpowers (Jesse Vincent's plugin) or an equivalent spec-driven workflow available, mark it ✓ and move on.
+
+If not, propose Superpowers from `git@github.com:obra/superpowers.git`. Use the install command for the agent you're running in:
+
+* **Claude Code:** `/plugin marketplace add obra/superpowers-marketplace` then `/plugin install superpowers@superpowers-marketplace`  
+* **Cursor:** `/add-plugin superpowers` in agent chat  
+* **Codex:** fetch and follow `raw.githubusercontent.com/obra/superpowers/main/.codex/INSTALL.md`  
+* **Gemini CLI:** `gemini extensions install https://github.com/obra/superpowers`  
+* **GitHub Copilot CLI:** `copilot plugin marketplace add obra/superpowers-marketplace` then `copilot plugin install superpowers@superpowers-marketplace`  
+* **OpenCode:** fetch and follow `raw.githubusercontent.com/obra/superpowers/main/.opencode/INSTALL.md`  
+* **Other:** share the repo link
+
+---
+
+## **Step 3 — Local PR review**
+
+Catches code smells, complexity, and quality issues before push. Much cheaper than catching them after the PR is open.
+
+If I already have `pr-review-code-simplicity` or equivalent available, mark it ✓ and move on.
+
+If not, propose `pr-review-code-simplicity` from the `infinum/ai` marketplace. For Claude Code: `/plugin install pr-review-code-simplicity@infinum-ai` (the marketplace was added in Step 1; if I skipped it, run `/plugin marketplace add infinum/ai` first). For other agents, share the repo link. Ask once, install on yes, link on no.
+
+After this skill is in place, **optionally** offer to add a one-liner to `AGENTS.md` / `CLAUDE.md`: "Before opening a PR, run `pr-review-code-simplicity`." Opt-in. Ask once, skip on no.
+
+---
+
+## **Step 4 — UI validation**
+
+Closes the gap between "the agent says it's done" and "the UI actually renders correctly" — catches layout regressions, broken states, and accessibility issues before the PR.
+
+If I already have `ui-validation` or equivalent available, mark it ✓ and move on.
+
+If not, propose `ui-validation` from the `infinum/ai` marketplace. For Claude Code: `/plugin install ui-validation@infinum-ai`. For other agents, share the repo link. Ask once, install on yes, link on no.
+
+After this skill is in place, **optionally** offer to add a one-liner to `AGENTS.md` / `CLAUDE.md`: "Before opening a PR with UI changes, run `ui-validation`." Opt-in. Ask once, skip on no.
+
+---
+
+## **Wrap-up**
+
+Once all four are handled, print the final checklist with each item marked `✓` (installed or already had it) or `—` (skipped). Then give me:
+
+* One line summarizing what got installed vs what I already had vs what I skipped.  
+* One concrete next thing to try — e.g. "pick a small feature and let's run it end-to-end through the new skills."
